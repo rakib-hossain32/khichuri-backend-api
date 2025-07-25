@@ -248,6 +248,47 @@ app.delete('/api/products/:id', async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+// Get reviews for a product
+app.get('/api/products/:id/reviews', async (req, res) => {
+    try {
+        console.log('Fetching reviews for product ID:', req.params.id);
+        const product = await Product.findById(req.params.id).lean();
+        if (!product) {
+            console.log('Product not found:', req.params.id);
+            return res.status(404).json({ message: 'Product not found' });
+        }
+        
+        console.log('Product found, current reviews:', product.reviews);
+        
+        // Return reviews sorted by date (newest first)
+        const reviews = (product.reviews || []).sort((a, b) => 
+            new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt)
+        );
+        
+        console.log('Sorted reviews:', reviews);
+        
+        // Ensure each review has a unique _id if missing
+        const processedReviews = reviews.map(review => ({
+            ...review,
+            _id: review._id ? review._id.toString() : Math.random().toString(36).substr(2, 9),
+            date: review.date || review.createdAt || new Date().toISOString()
+        }));
+        
+        console.log('Processed reviews:', processedReviews);
+        
+        // Enable CORS
+        res.header('Access-Control-Allow-Origin', '*');
+        res.json(processedReviews);
+    } catch (err) {
+        console.error('Error in GET /api/products/:id/reviews:', err);
+        res.status(500).json({ 
+            message: 'Error fetching reviews', 
+            error: err.message,
+            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+        });
+    }
+});
+
 // Add a review to a product
 app.post('/api/products/:id/reviews', async (req, res) => {
     try {
@@ -266,6 +307,7 @@ app.post('/api/products/:id/reviews', async (req, res) => {
             author,
             rating,
             comment,
+            date: new Date().toISOString()
         };
 
         product.reviews.push(newReview);
@@ -275,6 +317,31 @@ app.post('/api/products/:id/reviews', async (req, res) => {
         res.status(201).json(addedReview);
     } catch (error) {
         res.status(500).json({ message: 'Error adding review', error: error.message });
+    }
+});
+
+// --- API Routes for Contact Messages ---
+app.post('/api/contact', async (req, res) => {
+    try {
+        const { name, email, message } = req.body;
+        if (!name || !email || !message) {
+            return res.status(400).json({ message: 'Name, email and message are required.' });
+        }
+        const newMessage = await Message.create({ name, email, message });
+        res.status(201).json(newMessage);
+    } catch (err) {
+        console.error('Error saving contact message:', err);
+        res.status(500).json({ message: 'Failed to save message', error: err.message });
+    }
+});
+
+// List messages (e.g., for admin panel)
+app.get('/api/messages', async (req, res) => {
+    try {
+        const messages = await Message.find().sort({ _id: -1 }).lean();
+        res.json(messages);
+    } catch (err) {
+        res.status(500).json({ message: 'Failed to fetch messages', error: err.message });
     }
 });
 
