@@ -182,7 +182,7 @@ const messageSchema = new mongoose.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true },
     message: { type: String, required: true },
-    timestamp: { type: String, default: () => new Date().toLocaleString('bn-BD') }
+    createdAt: { type: Date, default: Date.now }
 });
 messageSchema.virtual('id').get(function() { return this._id.toHexString(); });
 messageSchema.set('toJSON', { virtuals: true });
@@ -342,6 +342,36 @@ app.get('/api/messages', async (req, res) => {
         res.json(messages);
     } catch (err) {
         res.status(500).json({ message: 'Failed to fetch messages', error: err.message });
+    }
+});
+
+// --- API Route for Contact Form ---
+app.post('/api/contact', async (req, res) => {
+    try {
+        const { name, email, message } = req.body;
+        
+        // Validate required fields
+        if (!name || !email || !message) {
+            return res.status(400).json({ message: 'All fields are required' });
+        }
+        
+        // Create new message
+        const newMessage = new Message({
+            name,
+            email,
+            message
+        });
+        
+        // Save to database
+        const savedMessage = await newMessage.save();
+        
+        res.status(201).json({ 
+            message: 'Message sent successfully',
+            data: savedMessage 
+        });
+    } catch (err) {
+        console.error('Error saving message:', err);
+        res.status(500).json({ message: 'Failed to send message', error: err.message });
     }
 });
 
